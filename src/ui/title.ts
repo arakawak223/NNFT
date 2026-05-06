@@ -22,11 +22,10 @@ export function buildTitle(opts: TitleOptions): HTMLElement {
         <h3>SHUNSUKE</h3>
         <p>標高 20m の座標把握。1 秒のスキャンでピッチ上の 23 個のオブジェクトを脳内マップに焼きつけよ。</p>
       </button>
-      <button class="mode-card" data-mode="hidetoshi" disabled>
+      <button class="mode-card" data-mode="hidetoshi">
         <div class="mode-tag">MODE · 02</div>
         <h3>HIDETOSHI</h3>
         <p>4 次元の未来予測。各選手のベクトルから 3 秒後のスペースを算出する能力を鍛える。</p>
-        <span class="mode-soon">PHASE 2 — COMING SOON</span>
       </button>
     </div>
     <div class="title-foot">v0.1 · PHASE 1 PROTOTYPE</div>

@@ -112,3 +112,55 @@ function median(arr: number[]) {
   const m = Math.floor(a.length / 2);
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
+
+// ---------- HIDETOSHI ----------
+
+/** Spec: 判断が遅い（500ms以上など）場合は「キラーパス失敗」とみなす。 */
+export const KILLER_PASS_RT_MS = 500;
+/** "Body length" tolerance — within ~3m the pass still finds its man. */
+export const KILLER_PASS_DIST_M = 3.0;
+
+export interface HidetoshiReport {
+  /** Distance between user prediction and physics-truth, in meters. */
+  errorM: number;
+  /** Time from "go" signal to first tap, in ms (0.001 ms resolution). */
+  reactionMs: number;
+  /** Spec: RT < 500ms AND error < ~3m == killer pass success. */
+  killerPassSuccess: boolean;
+  iq: {
+    coordAccuracy: number;
+    predictionSpeed: number;
+    overall: number;
+  };
+  legendBenchmark: number;
+}
+
+export function scoreHidetoshi(
+  prediction: Vec2,
+  truth: Vec2,
+  reactionMs: number
+): HidetoshiReport {
+  const dx = prediction.x - truth.x;
+  const dz = prediction.z - truth.z;
+  const errorM = Math.sqrt(dx * dx + dz * dz);
+
+  const killerPassSuccess =
+    reactionMs < KILLER_PASS_RT_MS && errorM < KILLER_PASS_DIST_M;
+
+  // 100 at 0ms, ~67 at 500ms, ~0 at 1500ms.
+  const predictionSpeed = Math.max(0, Math.min(100, Math.round(100 - reactionMs / 15)));
+  // 100 at 0m, ~50 at ~4m, ~20 at ~10m.
+  const coordAccuracy = Math.round(100 * Math.exp(-errorM / 6));
+
+  return {
+    errorM,
+    reactionMs,
+    killerPassSuccess,
+    iq: {
+      coordAccuracy,
+      predictionSpeed,
+      overall: Math.round(coordAccuracy * 0.6 + predictionSpeed * 0.4),
+    },
+    legendBenchmark: 100,
+  };
+}

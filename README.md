@@ -10,8 +10,8 @@
 
 ## 開発ステータス
 
-- **Phase 1 (MVP) ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
-- **Phase 2 ⏳ 未着手** — `Mode: HIDETOSHI` (動的時空間予測)
+- **Phase 1 ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
+- **Phase 2 ✅ 実装済み** — `Mode: HIDETOSHI` (動的時空間予測) フル動作
 - **Phase 3 ⏳ 未着手** — 周辺視トレーニング、天候フィルター、PLATEAU 連携
 
 ## クイックスタート
@@ -21,6 +21,28 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # 静的ビルド (dist/)
 ```
+
+## Mode: HIDETOSHI のフロー (Phase 2)
+
+| Phase | 説明 |
+| --- | --- |
+| **CLIP** | 5–9 秒の手続き生成 CG クリップを再生 (4-3-3 vs 4-3-3、ターゲット選手は黄色のリングで強調)。 |
+| **FREEZE** | パスが出る直前で停止 → 320ms 暗転。 |
+| **PREDICT** | 凍結時の選手位置 + 速度ベクトル (薄いライン) が表示。「★ ターゲットが 3 秒後に到達する地点」をタップで回答。RT は `performance.now()` で計測。 |
+| **REVEAL** | 3 秒間の前進シミュレーションをアニメで再生。自分の予測点 → 真の到達点 を線で結び、誤差を表示。 |
+
+**評価指標**
+
+| 指標 | 計算 |
+| --- | --- |
+| `Killer Pass` | RT < 500ms かつ 誤差 < 3.0m で成功 (仕様準拠) |
+| `Reaction Time` | 「PREDICT 画面初描画 → 最初のタップ」を 0.001ms 分解能で計測 |
+| `Prediction Speed` | `clamp(100 - reactionMs/15, 0, 100)` |
+| `Coord Accuracy`  | `100 · exp(-errorM/6)` |
+| `Vision IQ Overall` | `coordAccuracy*0.6 + predictionSpeed*0.4` |
+
+時空計算は `engine/physics.ts` の `positionAt(state, deltaMs)` で等速＋加速の解析解。
+Phase 3 で芝の摩擦・重心移動モデルに差し替え可。
 
 ## Mode: SHUNSUKE のフロー
 
@@ -47,16 +69,25 @@ npm run build    # 静的ビルド (dist/)
 
 ```
 src/
-  data/types.ts            ピッチ寸法・共通型
+  data/
+    types.ts               ピッチ寸法・共通型
+    clips.ts               HIDETOSHI 用クリップ生成 (速度ベクトル付き)
   engine/
-    scenario.ts            乱数シード付きシナリオ生成 (4-3-3 配置 + ボール)
-    scoring.ts             誤差→視点高さ→Vision IQ の変換
+    scenario.ts            SHUNSUKE 用シナリオ生成 (静的配置)
+    physics.ts             positionAt / velocityAt — 等速＋加速の解析解
+    scoring.ts             SHUNSUKE/HIDETOSHI 両モードのスコアリング
     stadium.ts             StadiumProvider 抽象 + MockStadium 実装
+    meshes.ts              共有 Three.js プレイヤー/ボールメッシュ
     orientation.ts         ジャイロ + ドラッグの統一ヨー/ピッチ入力
   modes/shunsuke/
     scan.ts                Three.js 1 人称ビュー
     plot.ts                Canvas 2D 作戦盤
     reveal.ts              地上→俯瞰アニメ + 結果サマリ
+    index.ts               フェーズ遷移オーケストレータ
+  modes/hidetoshi/
+    clip.ts                Three.js 動的シーン再生 (broadcast camera)
+    predict.ts             凍結タクティクス盤 + RT 計測
+    reveal.ts              3 秒前進シミュレーションアニメ + 結果
     index.ts               フェーズ遷移オーケストレータ
   ui/
     title.ts               タイトル / モード選択
@@ -64,24 +95,28 @@ src/
   main.ts                  エントリ
 ```
 
-## Phase 2 / 3 で差し込む箇所
+## Phase 3 で差し込む箇所
 
 - **PLATEAU 統合**: `engine/stadium.ts` の `StadiumProvider` を `PlateauStadium`
-  実装に差し替え。`MockStadium#build()` のシグネチャに合わせれば `ScanView`
-  への変更は不要。
+  実装に差し替え。`MockStadium#build()` のシグネチャに合わせれば `ScanView` /
+  `ClipPlayer` への変更は不要。
 - **天候フィルター**: `MockStadium#build()` の `scene.fog` をシナリオ難易度から
   動的生成。霧 / 雨 / 逆光は `THREE.Fog` + ポストプロセスで対応。
-- **HIDETOSHI モード**: `modes/hidetoshi/{video,predict,reveal,index}.ts`
-  を新設。実写動画の選手座標をフレーム化したデータセット型を `data/clips.ts`
-  に追加し、`engine/scoring.ts` に時空計算 (慣性 + 速度ベクトル) を追加。
-- **反応速度計測**: 動画停止 → タップまでを `performance.now()` の 0.001ms
-  分解能で記録 (Phase 2)。
-- **レーダーチャート可視化**: 4 軸全部が揃う Phase 2 以降に `reveal.ts`
-  へ Canvas のレーダーを追加。
+- **物理ロジック高度化**: `engine/physics.ts` を芝の摩擦 / 重心移動 / 最大加速度
+  上限を含むモデルに差し替え。`positionAt` のシグネチャを保てば呼び出し側無変更。
+- **実写動画連携**: `data/clips.ts` の `Clip` を「ベース動画 URL + 各フレームの
+  選手 2D 座標 (検出器 or 手動アノテーション由来)」に拡張。`ClipPlayer` を
+  `<video>` レンダラに切り替える派生クラスを追加。
+- **レーダーチャート可視化**: SHUNSUKE/HIDETOSHI 両軸が揃ったので、`reveal.ts`
+  に Canvas レーダー (座標精度 / 予測速度 / 情報保持数 / 周辺視反応) を追加。
+- **周辺視トレーニング**: 視野角 75° で見えていた領域外の正解にペナルティ
+  係数を掛ける `peripheralReaction` の実装。
 
-## 既知の制限 (Phase 1)
+## 既知の制限 (現バージョン)
 
 - スタジアムはプレースホルダ (PLATEAU 連携は未実装)。
-- レーダーチャート UI は Phase 2 以降。
+- レーダーチャート UI は未実装 (4 軸が揃う Phase 3 で追加)。
 - ジャイロ較正はセッション開始時の方位を 0 とする簡易版。
-- スキャナビゲーションのキーボード対応 (WASD) は未実装。
+- HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
+  は Phase 3 で追加予定)。
+- スキャン中のキーボード対応 (WASD) は未実装。

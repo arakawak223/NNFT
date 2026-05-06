@@ -1,5 +1,6 @@
 import { buildTitle } from "./ui/title";
 import { ShunsukeMode } from "./modes/shunsuke";
+import { HidetoshiMode } from "./modes/hidetoshi";
 
 const root = document.getElementById("app")!;
 
@@ -11,7 +12,7 @@ function showTitle() {
   const el = buildTitle({
     onPick: (mode) => {
       if (mode === "shunsuke") startShunsuke();
-      // hidetoshi card is disabled in MVP.
+      if (mode === "hidetoshi") startHidetoshi();
     },
   });
   root.appendChild(el);
@@ -22,6 +23,12 @@ function startShunsuke() {
   if (active) { active.destroy(); active = null; }
   root.innerHTML = "";
   active = new ShunsukeMode(root, { onExit: showTitle });
+}
+
+function startHidetoshi() {
+  if (active) { active.destroy(); active = null; }
+  root.innerHTML = "";
+  active = new HidetoshiMode(root, { onExit: showTitle });
 }
 
 showTitle();

@@ -249,6 +249,9 @@ body {
 .tray .pip.enemy { background: var(--enemy); color: #fff; }
 .tray .pip.ball  { background: var(--ball); }
 
+.tray .rt-label  { color: var(--ink-2); }
+.tray .rt-value  { font-family: var(--font-mono); color: var(--ink-0); min-width: 70px; display: inline-block; }
+
 .plot-status {
   position: absolute;
   top: 56px; left: 50%; transform: translateX(-50%);
