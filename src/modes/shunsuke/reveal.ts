@@ -191,9 +191,24 @@ export class RevealView {
     ctx.beginPath(); ctx.arc(obs.x, obs.y, 4, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
-    // Truth markers (solid)
+    // Index peripheral entities by id for O(1) lookup while drawing.
+    const peripheralIds = new Set<string>();
+    if (this.opts.report.peripheral) {
+      for (const o of this.opts.report.peripheral.offsetsDeg) {
+        if (o.peripheral) peripheralIds.add(o.id);
+      }
+    }
+
+    // Truth markers (solid) — peripheral entities get a purple halo so
+    // the user can see which pieces they had to remember without looking
+    // directly. Only shown after the camera lifts above ~5m (visible at
+    // the same time the player names would be legible).
+    const peripheralVisible = this.altitudeM >= 4;
     for (const e of this.opts.truth) {
       const c = pitchToCanvas(e.pos.x, e.pos.z, w, h, zoom);
+      if (peripheralVisible && peripheralIds.has(e.id)) {
+        drawPeripheralHalo(ctx, c.x, c.y);
+      }
       drawMarker(ctx, c.x, c.y, e.kind, false);
     }
 
@@ -208,7 +223,50 @@ export class RevealView {
       ctx.restore();
       drawMarker(ctx, a.x, a.y, pair.placed.kind, true);
     }
+
+    // Top-right legend, only shown once peripheral halos are visible.
+    if (peripheralVisible && peripheralIds.size > 0) {
+      drawPeripheralLegend(ctx, w, peripheralIds.size);
+    }
   }
+}
+
+const PERIPHERAL_COLOR = "#b76cff";
+
+function drawPeripheralHalo(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  ctx.save();
+  ctx.strokeStyle = PERIPHERAL_COLOR;
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawPeripheralLegend(ctx: CanvasRenderingContext2D, w: number, count: number) {
+  const pad = 10;
+  const text = `周辺視テスト対象 ${count} 体`;
+  ctx.save();
+  ctx.font = "10px monospace";
+  const tw = ctx.measureText(text).width;
+  const boxW = tw + 38;
+  const boxH = 22;
+  const x = w - boxW - pad;
+  const y = pad;
+  ctx.fillStyle = "rgba(10,14,26,0.78)";
+  ctx.strokeStyle = "rgba(183,108,255,0.55)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, boxW, boxH, 11);
+  else ctx.rect(x, y, boxW, boxH);
+  ctx.fill(); ctx.stroke();
+  // Halo swatch
+  ctx.strokeStyle = PERIPHERAL_COLOR;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x + 14, y + boxH / 2, 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "rgba(231,238,252,0.92)";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x + 26, y + boxH / 2);
+  ctx.restore();
 }
 
 function drawMarker(

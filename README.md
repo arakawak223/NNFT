@@ -195,6 +195,16 @@ Clip は seeded 乱数で 1 つを決定 (同 seed なら同天候で再現可�
 | INFO RETENTION (情報保持)   | ✅ | — | SHUNSUKE のみ |
 | PERIPHERAL VISION (周辺視)  | ✅ | — | SHUNSUKE のみ (固定カメラの HIDETOSHI では計測不能) |
 
+## 周辺視可視化 (Phase 4-3)
+
+SHUNSUKE の REVEAL 俯瞰盤で、視野外プールに入ったエンティティに
+**紫の周辺視ハロ** (`#b76cff`) を重ねる。カメラ高度が 4m を超えたタイミングで
+表示 (近接視点では情報過多になるため)。右上に小さな凡例チップで「周辺視テスト
+対象 N 体」を表示する。
+
+これで Phase 3-2 で計測した `peripheralReaction` メトリクスが視覚的に裏打ち
+される — 数値が下がったとき「どの位置が落としどころだったか」が一目で判る。
+
 ## 周辺視メトリクス (Phase 3-2)
 
 SHUNSUKE の SCAN 中、毎フレーム `OrientationController.state.yaw` を
