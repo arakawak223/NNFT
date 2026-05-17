@@ -3,6 +3,7 @@ import { Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { MockStadium, StadiumProvider } from "../../engine/stadium";
 import { KIND_COLOR, PLAYER_HEIGHT_M, buildBallMesh, buildPlayerMesh } from "../../engine/meshes";
+import { WeatherHandle, applyWeather } from "../../engine/weather";
 
 export interface ClipPlayOptions {
   onFreeze: () => void;
@@ -18,6 +19,7 @@ export class ClipPlayer {
   private camera: THREE.PerspectiveCamera;
   private meshes = new Map<string, THREE.Object3D>();
   private targetRing!: THREE.Mesh;
+  private weather: WeatherHandle;
   private rafId = 0;
   private startedAt = 0;
   private running = false;
@@ -34,6 +36,7 @@ export class ClipPlayer {
 
     this.scene = new THREE.Scene();
     (opts.stadium ?? new MockStadium()).build(this.scene);
+    this.weather = applyWeather(this.scene, clip.weather);
 
     // Tactical broadcast angle — high above one sideline.
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 800);
@@ -76,6 +79,7 @@ export class ClipPlayer {
 
   destroy() {
     this.stop();
+    this.weather.dispose();
     window.removeEventListener("resize", this.resize);
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -84,6 +88,8 @@ export class ClipPlayer {
   private tick = () => {
     if (!this.running) return;
     const elapsed = performance.now() - this.startedAt;
+
+    this.weather.update(elapsed);
 
     for (const e of this.clip.entities) {
       const m = this.meshes.get(e.id);

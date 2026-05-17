@@ -1,5 +1,7 @@
 import { EntityKind, PITCH, Vec2 } from "./types";
 import { MovingState } from "../engine/physics";
+import { WeatherKind } from "../engine/weather";
+import { pickWeather } from "../engine/scenario";
 
 export interface MovingEntity extends MovingState {
   id: string;
@@ -16,6 +18,8 @@ export interface Clip {
   entities: MovingEntity[];
   /** id of the player to predict — highlighted with a ring during playback. */
   targetEntityId: string;
+  /** Weather filter applied during CLIP. */
+  weather: WeatherKind;
 }
 
 function mulberry32(seed: number) {
@@ -88,6 +92,7 @@ export function generateClip(seed = Math.floor(Math.random() * 2 ** 31)): Clip {
 
   // Freeze 5–9s in. Most realistic killer-pass moment.
   const freezeAtMs = 5000 + Math.floor(rand() * 4000);
+  const weather = pickWeather(rand);
 
   return {
     seed,
@@ -95,5 +100,6 @@ export function generateClip(seed = Math.floor(Math.random() * 2 ** 31)): Clip {
     predictionDeltaMs: 3000,
     entities,
     targetEntityId: target.id,
+    weather,
   };
 }

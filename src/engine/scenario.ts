@@ -1,4 +1,5 @@
 import { Entity, PITCH, Vec2 } from "../data/types";
+import { WeatherKind } from "./weather";
 
 /** Mulberry32 PRNG so we can replay/share scenarios via a seed. */
 function rng(seed: number) {
@@ -20,6 +21,20 @@ export interface Scenario {
   observerHeading: number;
   /** All 23 entities — 11 allies, 11 enemies, 1 ball. */
   entities: Entity[];
+  /** Weather filter applied during SCAN. Seeded so a given seed always
+   *  replays under the same conditions. */
+  weather: WeatherKind;
+}
+
+/** Weighted selection from a 0..1 rand sample. `clear` at 50% so the
+ *  default look isn't bombarded with FX every run; the other three split
+ *  the remainder equally. */
+export function pickWeather(rand: () => number): WeatherKind {
+  const r = rand();
+  if (r < 0.5)  return "clear";
+  if (r < 0.66) return "fog";
+  if (r < 0.83) return "rain";
+  return "backlight";
 }
 
 /** Loose 4-3-3 vs 4-3-3 placement with jitter so each scenario looks
@@ -78,6 +93,7 @@ export function generateScenario(seed = Math.floor(Math.random() * 2 ** 31)): Sc
   // Observer: pick the most-central ally so the scene is full of action.
   const observer: Vec2 = { x: -5 + jitter(4), z: jitter(8) };
   const observerHeading = 0; // facing +x (forward)
+  const weather = pickWeather(rand);
 
-  return { seed, observer, observerHeading, entities };
+  return { seed, observer, observerHeading, entities, weather };
 }

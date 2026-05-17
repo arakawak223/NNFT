@@ -2,6 +2,7 @@ import { generateScenario, Scenario } from "../../engine/scenario";
 import { score } from "../../engine/scoring";
 import { Entity } from "../../data/types";
 import { StadiumProvider } from "../../engine/stadium";
+import { WEATHER_LABEL_JA } from "../../engine/weather";
 import { loadBests, updateBests } from "../../ui/radar";
 import { ScanResult, ScanView } from "./scan";
 import { PlotView } from "./plot";
@@ -44,7 +45,10 @@ export class ShunsukeMode {
     const hud = document.createElement("div");
     hud.className = "hud-top";
     hud.innerHTML = `
-      <div class="left">MODE&nbsp;:&nbsp;SHUNSUKE</div>
+      <div class="left">
+        <span>MODE&nbsp;:&nbsp;SHUNSUKE</span>
+        ${weatherChip(scenario.weather)}
+      </div>
       <div class="right"><span class="scan-timer">1.00</span></div>
     `;
     stage.appendChild(hud);
@@ -138,6 +142,11 @@ export class ShunsukeMode {
     this.current = null;
     this.el.innerHTML = "";
   }
+}
+
+function weatherChip(w: Scenario["weather"]): string {
+  if (w === "clear") return "";
+  return `<span class="weather-chip" data-w="${w}">${w.toUpperCase()} · ${WEATHER_LABEL_JA[w]}</span>`;
 }
 
 function persistRun(report: ReturnType<typeof score>) {

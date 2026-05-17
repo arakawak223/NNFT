@@ -12,10 +12,10 @@
 
 - **Phase 1 ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
 - **Phase 2 ✅ 実装済み** — `Mode: HIDETOSHI` (動的時空間予測) フル動作
-- **Phase 3 🟡 進行中** — Vision IQ Radar (4軸可視化 + 自己ベスト) ✅ /
-  周辺視トレーニング (`peripheralReaction`) ✅ /
-  PLATEAU 連携 (glTF プロバイダ + 自動フォールバック) ✅。
-  残: 天候フィルター
+- **Phase 3 ✅ 実装済み** — Vision IQ Radar (4軸可視化 + 自己ベスト) /
+  周辺視トレーニング (`peripheralReaction`) /
+  PLATEAU 連携 (glTF プロバイダ + 自動フォールバック) /
+  天候フィルター (晴/霧/雨/逆光、seed 連動)
 
 ## クイックスタート
 
@@ -88,10 +88,11 @@ src/
     types.ts               ピッチ寸法・共通型
     clips.ts               HIDETOSHI 用クリップ生成 (速度ベクトル付き)
   engine/
-    scenario.ts            SHUNSUKE 用シナリオ生成 (静的配置)
+    scenario.ts            SHUNSUKE 用シナリオ生成 (静的配置) + 天候 seed 選択
     physics.ts             positionAt / velocityAt — 等速＋加速の解析解
     scoring.ts             SHUNSUKE/HIDETOSHI 両モードのスコアリング
-    stadium.ts             StadiumProvider 抽象 + MockStadium 実装
+    stadium.ts             StadiumProvider 抽象 + Mock / Plateau 実装
+    weather.ts             晴/霧/雨/逆光フィルター (Fog/ライト/雨パーティクル)
     meshes.ts              共有 Three.js プレイヤー/ボールメッシュ
     orientation.ts         ジャイロ + ドラッグの統一ヨー/ピッチ入力
   modes/shunsuke/
@@ -110,6 +111,27 @@ src/
     styles.css
   main.ts                  エントリ / PLATEAU URL 読込 / トースト
 ```
+
+## 天候フィルター (Phase 3-4)
+
+`engine/weather.ts` で 4 種の難易度フィルターをシーン適用。各 Scenario /
+Clip は seeded 乱数で 1 つを決定 (同 seed なら同天候で再現可能)。
+
+| Kind | 視覚 | 効果 |
+| --- | --- | --- |
+| `clear` (50%) | 通常 | デフォルト Fog 60..240、青系アンビエント |
+| `fog` (16%) | 灰青の濃霧 | `THREE.FogExp2(0.022)` で視程 ~50m。遠方は失明、近傍記憶が頼り |
+| `rain` (17%) | 暗い背景 + 雨粒 | 600 本の `LineSegments` を縦軸ループ、線形 Fog 40..180、冷色アンビエント |
+| `backlight` (17%) | 逆光 | 低角度の暖色 `DirectionalLight` (1.9) + 半球ライト。遠距離はシルエット化 |
+
+選択は `pickWeather(rand)` (`engine/scenario.ts`) で行い、Scenario/Clip 両方
+の生成器が呼ぶ。HUD は `clear` 以外で `WEATHER_CHIP` を左上に表示
+(`FOG · 濃霧` 等)。`applyWeather` は `WeatherHandle` を返し、`update(dtMs)`
+を毎フレーム呼んで雨粒を駆動、`dispose()` でクリーンアップ。
+
+スコアリングへの影響は意図的に **無し** (難易度は seed の運要素として扱う)。
+平等な比較が必要なら同 seed で再走するか、`scenario.weather === "clear"` の
+ランだけ集計する。
 
 ## PLATEAU 連携 (Phase 3-3)
 
@@ -137,8 +159,9 @@ src/
   `3d-tiles-renderer` を検討)
 
 ## Phase 3 で差し込む箇所
-- **天候フィルター**: `MockStadium#build()` の `scene.fog` をシナリオ難易度から
-  動的生成。霧 / 雨 / 逆光は `THREE.Fog` + ポストプロセスで対応。
+- **天候強度のスコアリング考慮**: 同 seed 比較が運用上不便なら、難易度ボーナス
+  係数を `score()` / `scoreHidetoshi()` に乗せる。現状は seed 再現性のため
+  ニュートラル。
 - **物理ロジック高度化**: `engine/physics.ts` を芝の摩擦 / 重心移動 / 最大加速度
   上限を含むモデルに差し替え。`positionAt` のシグネチャを保てば呼び出し側無変更。
 - **実写動画連携**: `data/clips.ts` の `Clip` を「ベース動画 URL + 各フレームの
@@ -197,6 +220,7 @@ peripheralReaction = round(100 · exp(-avg_error_m / 4))
   座標系変換は未実装)。
 - ジャイロ較正はセッション開始時の方位を 0 とする簡易版。
 - HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
-  は Phase 3 で追加予定)。
+  は Phase 3+ で追加予定)。
 - スキャン中のキーボード対応 (WASD) は未実装。
 - 周辺視は SHUNSUKE のみ計測 (HIDETOSHI は固定カメラ)。
+- 天候はスコアリングに影響しない (難易度補正なし、seed 再現性優先)。

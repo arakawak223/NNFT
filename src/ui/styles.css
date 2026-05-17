@@ -197,6 +197,22 @@ body {
   color: var(--accent);
   letter-spacing: 0;
 }
+
+.weather-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  margin-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.weather-chip[data-w="fog"]       { color: #c9d4df; border-color: #5b6d7d; background: rgba(90, 110, 130, 0.18); }
+.weather-chip[data-w="rain"]      { color: #9fb3c8; border-color: #4a6379; background: rgba(60, 95, 120, 0.22); }
+.weather-chip[data-w="backlight"] { color: #ffd58a; border-color: #b0701a; background: rgba(255, 184, 74, 0.10); }
 .scan-progress {
   position: absolute;
   bottom: 0; left: 0;

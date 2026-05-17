@@ -4,6 +4,7 @@ import { Scenario } from "../../engine/scenario";
 import { MockStadium, StadiumProvider } from "../../engine/stadium";
 import { OrientationController } from "../../engine/orientation";
 import { KIND_COLOR, PLAYER_HEIGHT_M, buildBallMesh, buildPlayerMesh } from "../../engine/meshes";
+import { WeatherHandle, applyWeather } from "../../engine/weather";
 
 const EYE_HEIGHT_M = 1.65;
 
@@ -34,6 +35,7 @@ export class ScanView {
   private startedAt = 0;
   private durationMs: number;
   private yawSamples: number[] = [];
+  private weather: WeatherHandle;
 
   constructor(
     private container: HTMLElement,
@@ -49,6 +51,9 @@ export class ScanView {
 
     this.scene = new THREE.Scene();
     (opts.stadium ?? new MockStadium()).build(this.scene);
+    // Weather overrides the stadium's default fog/lights and may attach
+    // animated particles (rain). Applied AFTER the stadium so it wins.
+    this.weather = applyWeather(this.scene, scenario.weather);
 
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 600);
     // The observer stands at scenario.observer; eye at EYE_HEIGHT_M.
@@ -71,6 +76,8 @@ export class ScanView {
       const elapsed = performance.now() - this.startedAt;
       const remaining = Math.max(0, this.durationMs - elapsed);
       this.opts.onTick?.(remaining);
+
+      this.weather.update(elapsed);
 
       // Apply orientation to camera.
       const { yaw, pitch } = this.orient.state;
@@ -103,6 +110,7 @@ export class ScanView {
   destroy() {
     this.stop();
     this.orient.destroy();
+    this.weather.dispose();
     window.removeEventListener("resize", this.resize);
     this.renderer.dispose();
     this.renderer.domElement.remove();
