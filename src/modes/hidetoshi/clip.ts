@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
-import { MockStadium } from "../../engine/stadium";
+import { MockStadium, StadiumProvider } from "../../engine/stadium";
 import { KIND_COLOR, PLAYER_HEIGHT_M, buildBallMesh, buildPlayerMesh } from "../../engine/meshes";
 
 export interface ClipPlayOptions {
   onFreeze: () => void;
   onTick?: (elapsedMs: number, totalMs: number) => void;
+  stadium?: StadiumProvider;
 }
 
 /** Plays a Clip with a tactical broadcast camera (high, behind one sideline)
@@ -32,7 +33,7 @@ export class ClipPlayer {
     this.resize();
 
     this.scene = new THREE.Scene();
-    new MockStadium().build(this.scene);
+    (opts.stadium ?? new MockStadium()).build(this.scene);
 
     // Tactical broadcast angle — high above one sideline.
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 800);

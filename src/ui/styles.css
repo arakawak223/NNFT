@@ -125,6 +125,48 @@ body {
   color: var(--ink-2);
 }
 
+.stadium-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.stadium-toggle .stadium-label {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--ink-2);
+}
+.stadium-toggle .seg {
+  background: transparent;
+  color: var(--ink-1);
+  border: 1px solid var(--line);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+.stadium-toggle .seg.on {
+  background: var(--accent);
+  color: #04101a;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.stadium-toggle .seg:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.stadium-toggle .stadium-sub {
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  color: var(--ink-2);
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
 /* ---------- HUD shared ---------- */
 .stage {
   position: relative;

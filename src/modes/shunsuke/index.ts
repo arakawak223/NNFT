@@ -1,6 +1,7 @@
 import { generateScenario, Scenario } from "../../engine/scenario";
 import { score } from "../../engine/scoring";
 import { Entity } from "../../data/types";
+import { StadiumProvider } from "../../engine/stadium";
 import { loadBests, updateBests } from "../../ui/radar";
 import { ScanResult, ScanView } from "./scan";
 import { PlotView } from "./plot";
@@ -10,6 +11,7 @@ const SCAN_MS = 1000;
 
 export interface ShunsukeOptions {
   onExit: () => void;
+  stadium?: StadiumProvider;
 }
 
 /** Orchestrates the SHUNSUKE flow: scan → blackout → plot → reveal. */
@@ -66,6 +68,7 @@ export class ShunsukeMode {
 
     const view = new ScanView(stage, scenario, {
       durationMs: SCAN_MS,
+      stadium: this.opts.stadium,
       onTick: (rem) => {
         timerEl.textContent = (rem / 1000).toFixed(2);
       },

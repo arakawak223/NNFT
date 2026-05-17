@@ -13,8 +13,9 @@
 - **Phase 1 ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
 - **Phase 2 ✅ 実装済み** — `Mode: HIDETOSHI` (動的時空間予測) フル動作
 - **Phase 3 🟡 進行中** — Vision IQ Radar (4軸可視化 + 自己ベスト) ✅ /
-  周辺視トレーニング (`peripheralReaction`) ✅。
-  残: 天候フィルター、PLATEAU 連携
+  周辺視トレーニング (`peripheralReaction`) ✅ /
+  PLATEAU 連携 (glTF プロバイダ + 自動フォールバック) ✅。
+  残: 天候フィルター
 
 ## クイックスタート
 
@@ -23,6 +24,17 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # 静的ビルド (dist/)
 ```
+
+PLATEAU 連携を有効にするには `.env.local` (gitignore 済) または環境変数で
+glTF/glb の URL を渡す:
+
+```bash
+VITE_PLATEAU_GLTF_URL=https://example.com/path/to/stadium.glb npm run dev
+```
+
+未設定でも動作する (タイトル画面の PLATEAU トグルが disabled 化、MOCK のみ
+利用可)。設定済みかつ読み込み失敗時は自動で MOCK スタジアムにフォールバック
+し、トースト通知する。
 
 ## Mode: HIDETOSHI のフロー (Phase 2)
 
@@ -93,17 +105,38 @@ src/
     reveal.ts              3 秒前進シミュレーションアニメ + 結果
     index.ts               フェーズ遷移オーケストレータ
   ui/
-    title.ts               タイトル / モード選択
+    title.ts               タイトル / モード選択 + STADIUM トグル
     radar.ts               Vision IQ レーダー + 自己ベスト永続化
     styles.css
-  main.ts                  エントリ
+  main.ts                  エントリ / PLATEAU URL 読込 / トースト
 ```
 
-## Phase 3 で差し込む箇所
+## PLATEAU 連携 (Phase 3-3)
 
-- **PLATEAU 統合**: `engine/stadium.ts` の `StadiumProvider` を `PlateauStadium`
-  実装に差し替え。`MockStadium#build()` のシグネチャに合わせれば `ScanView` /
-  `ClipPlayer` への変更は不要。
+`engine/stadium.ts` に `PlateauStadium implements StadiumProvider` を追加。
+
+| 役割 | 実装 |
+| --- | --- |
+| 共通ベース (芝・ライン・照明) | `buildBasePitch()` を MOCK/PLATEAU で共有 |
+| 観客席 (MOCK) | 4 枚の長方形の `MeshStandardMaterial` 壁 |
+| 観客席 (PLATEAU) | `GLTFLoader().loadAsync(url)` → `normalizeStadiumTransform()` で中心 + 接地 |
+| フォールバック | 読み込み失敗時に `buildMockTribune()` を append、トースト表示 |
+| 選択 UI | タイトル画面の `STADIUM: MOCK / PLATEAU` セグメントトグル |
+| 永続化 | `localStorage['vc.stadium']` |
+| URL 設定 | `VITE_PLATEAU_GLTF_URL` (Vite 環境変数) |
+
+**ピッチは常に手続き生成** なので、PLATEAU 側の座標系 (EPSG:6697 等) に
+合わせ込む必要はない。スタジアム構造体は装飾として中心 0,0 / 接地 Y=0 に
+正規化される。
+
+データソース候補:
+- [Project PLATEAU GitHub Releases](https://github.com/Project-PLATEAU) の
+  シティモデル glTF エクスポート
+- [PLATEAU VIEW](https://plateauview.mlit.go.jp/) からエクスポートした 3D Tiles
+  を glTF/glb に変換 (本格 3D Tiles ストリーミングは Phase 3+ で
+  `3d-tiles-renderer` を検討)
+
+## Phase 3 で差し込む箇所
 - **天候フィルター**: `MockStadium#build()` の `scene.fog` をシナリオ難易度から
   動的生成。霧 / 雨 / 逆光は `THREE.Fog` + ポストプロセスで対応。
 - **物理ロジック高度化**: `engine/physics.ts` を芝の摩擦 / 重心移動 / 最大加速度
@@ -160,7 +193,8 @@ peripheralReaction = round(100 · exp(-avg_error_m / 4))
 
 ## 既知の制限 (現バージョン)
 
-- スタジアムはプレースホルダ (PLATEAU 連携は未実装)。
+- PLATEAU 統合は glTF/glb 単発ロードのみ (本格 3D Tiles ストリーミング・LOD・
+  座標系変換は未実装)。
 - ジャイロ較正はセッション開始時の方位を 0 とする簡易版。
 - HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
   は Phase 3 で追加予定)。

@@ -2,6 +2,7 @@ import { generateClip, Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { scoreHidetoshi } from "../../engine/scoring";
 import { Vec2 } from "../../data/types";
+import { StadiumProvider } from "../../engine/stadium";
 import { loadBests, updateBests } from "../../ui/radar";
 import { ClipPlayer } from "./clip";
 import { PredictView, PredictResult } from "./predict";
@@ -9,6 +10,7 @@ import { HidetoshiRevealView } from "./reveal";
 
 export interface HidetoshiOptions {
   onExit: () => void;
+  stadium?: StadiumProvider;
 }
 
 /** Orchestrates the HIDETOSHI flow: clip → freeze/blackout → predict → reveal. */
@@ -60,6 +62,7 @@ export class HidetoshiMode {
     const timerEl = hud.querySelector(".scan-timer") as HTMLElement;
 
     const player = new ClipPlayer(stage, clip, {
+      stadium: this.opts.stadium,
       onTick: (elapsed, total) => {
         timerEl.textContent = (elapsed / 1000).toFixed(2);
         progress.style.transform = `scaleX(${Math.min(1, elapsed / total)})`;

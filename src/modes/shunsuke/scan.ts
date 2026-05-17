@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Entity, PITCH } from "../../data/types";
 import { Scenario } from "../../engine/scenario";
-import { MockStadium } from "../../engine/stadium";
+import { MockStadium, StadiumProvider } from "../../engine/stadium";
 import { OrientationController } from "../../engine/orientation";
 import { KIND_COLOR, PLAYER_HEIGHT_M, buildBallMesh, buildPlayerMesh } from "../../engine/meshes";
 
@@ -17,6 +17,7 @@ export interface ScanResult {
 
 export interface ScanOptions {
   durationMs?: number;
+  stadium?: StadiumProvider;
   onTick?: (remainingMs: number) => void;
   onComplete?: (r: ScanResult) => void;
 }
@@ -47,7 +48,7 @@ export class ScanView {
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    new MockStadium().build(this.scene);
+    (opts.stadium ?? new MockStadium()).build(this.scene);
 
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 600);
     // The observer stands at scenario.observer; eye at EYE_HEIGHT_M.
