@@ -1,7 +1,7 @@
 import { generateClip, Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { scoreHidetoshi } from "../../engine/scoring";
-import { computeOpenSpace } from "../../engine/space";
+import { OpenSpaceResult, computeOpenSpace } from "../../engine/space";
 import { Vec2 } from "../../data/types";
 import { StadiumProvider } from "../../engine/stadium";
 import { WEATHER_LABEL_JA } from "../../engine/weather";
@@ -107,9 +107,10 @@ export class HidetoshiMode {
   private startReveal(clip: Clip, prediction: Vec2, reactionMs: number) {
     this.replaceContent();
     let truth: Vec2;
+    let spaceField: OpenSpaceResult | undefined;
     if (clip.predictionTarget === "space") {
-      const r = computeOpenSpace(clip.entities, clip.freezeAtMs, clip.predictionDeltaMs);
-      truth = r.truth;
+      spaceField = computeOpenSpace(clip.entities, clip.freezeAtMs, clip.predictionDeltaMs);
+      truth = spaceField.truth;
     } else {
       const target = clip.entities.find((e) => e.id === clip.targetEntityId)! as MovingEntity;
       truth = positionAt(target, clip.freezeAtMs + clip.predictionDeltaMs);
@@ -128,6 +129,7 @@ export class HidetoshiMode {
       clip,
       prediction,
       truth,
+      spaceField,
       report,
       previousBests,
       onRetry: () => this.startClip(generateClip()),

@@ -35,6 +35,14 @@ const GRID_STEP_M = 1;
  *  passing backward isn't a "killer pass". */
 const FORWARD_REACH_M = 38;
 
+export interface OpenSpaceCell {
+  /** Cell center (x, z) in pitch coords. */
+  x: number;
+  z: number;
+  /** min(dist to nearest enemy) at this cell in the future tick. */
+  marginM: number;
+}
+
 export interface OpenSpaceResult {
   /** The optimal cell at `t = freezeAt + deltaMs`. */
   truth: Vec2;
@@ -47,6 +55,11 @@ export interface OpenSpaceResult {
   /** How many candidate cells were considered after reachability + bounds
    *  filtering. Mostly diagnostic. */
   consideredCount: number;
+  /** All reachable cells with their margins. Used by REVEAL to paint a
+   *  heatmap so the user sees the full "pitch control" landscape behind
+   *  the chosen truth cell. Unreachable cells are NOT included to keep
+   *  the payload small (~1k cells in realistic scenarios). */
+  cells: OpenSpaceCell[];
 }
 
 /** Find the carrier — the ally entity closest to the ball at `tMs`. */
@@ -92,6 +105,7 @@ export function computeOpenSpace(
   let best: Vec2 | null = null;
   let bestMargin = -Infinity;
   let considered = 0;
+  const cells: OpenSpaceCell[] = [];
 
   for (let x = xMin; x <= xMax; x += GRID_STEP_M) {
     for (let z = zMin; z <= zMax; z += GRID_STEP_M) {
@@ -109,6 +123,7 @@ export function computeOpenSpace(
         if (d < minEnemy) minEnemy = d;
       }
       considered++;
+      cells.push({ x, z, marginM: minEnemy });
       if (minEnemy > bestMargin) {
         bestMargin = minEnemy;
         best = { x, z };
@@ -129,5 +144,10 @@ export function computeOpenSpace(
     marginM: bestMargin,
     carrierPos: carrierFreeze,
     consideredCount: considered,
+    cells,
   };
 }
+
+/** Visualization helper: GRID_STEP_M exposed so the renderer knows how
+ *  large each heatmap rectangle should be in pitch coordinates. */
+export const OPEN_SPACE_GRID_STEP_M = GRID_STEP_M;

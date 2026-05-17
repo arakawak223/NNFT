@@ -2,6 +2,7 @@ import { EntityKind, PITCH, Vec2 } from "../../data/types";
 import { Clip } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { HidetoshiReport, KILLER_PASS_RT_MS } from "../../engine/scoring";
+import { OPEN_SPACE_GRID_STEP_M, OpenSpaceResult } from "../../engine/space";
 import { AxisValues, RadarChart } from "../../ui/radar";
 
 const KIND_FILL: Record<EntityKind, string> = {
@@ -19,6 +20,9 @@ export interface RevealOptions {
   clip: Clip;
   prediction: Vec2;
   truth: Vec2;
+  /** Open-space heatmap for SPACE-mode clips. Undefined when the clip
+   *  is in PLAYER mode (no heatmap is drawn then). */
+  spaceField?: OpenSpaceResult;
   report: HidetoshiReport;
   /** Personal best per axis BEFORE this run. */
   previousBests: AxisValues;
@@ -180,6 +184,21 @@ export class HidetoshiRevealView {
     const h = this.canvas.clientHeight;
     ctx.fillStyle = "#0c2418";
     ctx.fillRect(0, 0, w, h);
+
+    // Open-space heatmap fades in over the last third of the simulation —
+    // by then the user has seen the entity trails and can absorb why the
+    // truth landed where it did. Drawn UNDER the field lines so the lines
+    // stay readable on top.
+    const field = this.opts.spaceField;
+    if (field && simT >= this.opts.clip.predictionDeltaMs * 0.6) {
+      const fadeT = Math.min(
+        1,
+        (simT - this.opts.clip.predictionDeltaMs * 0.6) /
+        (this.opts.clip.predictionDeltaMs * 0.4)
+      );
+      drawSpaceHeatmap(ctx, w, h, field, fadeT);
+    }
+
     drawFieldLines(ctx, w, h);
 
     const freezeT = this.opts.clip.freezeAtMs;
@@ -249,6 +268,42 @@ function pitchToCanvas(x: number, z: number, w: number, h: number) {
     x: ((x + PITCH.length / 2) / PITCH.length) * w,
     y: ((z + PITCH.width / 2) / PITCH.width) * h,
   };
+}
+
+/** Color ramp for the open-space heatmap: 0m margin (touching defender)
+ *  → red; ≥CLAMP_M → bright green. Smooth interpolation in between so
+ *  the eye can read gradient deltas. Returns an rgb string. */
+function marginColor(marginM: number, clampM = 12) {
+  const t = Math.max(0, Math.min(1, marginM / clampM));
+  // Red→amber→green ramp.
+  const r = Math.round(255 * (1 - t) + 78 * t);
+  const g = Math.round(56  * (1 - t) + 222 * t);
+  const b = Math.round(64  * (1 - t) + 128 * t);
+  return `${r},${g},${b}`;
+}
+
+function drawSpaceHeatmap(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  field: OpenSpaceResult,
+  fadeT: number
+) {
+  // Each cell renders as a small rectangle whose color encodes margin.
+  // Cell size in canvas pixels = grid-step (m) → canvas-px per meter.
+  const cellPx = (OPEN_SPACE_GRID_STEP_M / PITCH.length) * w;
+  const halfPx = cellPx * 0.5 + 0.5; // tiny overlap to hide grid seams
+  ctx.save();
+  for (const c of field.cells) {
+    const p = pitchToCanvas(c.x, c.z, w, h);
+    // Subtle alpha curve: peak alpha for the BEST margin, faded for
+    // mediocre ones, so the eye locks onto the "deep green" pockets
+    // rather than getting a uniform color wash.
+    const norm = Math.max(0, Math.min(1, c.marginM / 12));
+    const alpha = (0.10 + norm * 0.30) * fadeT;
+    ctx.fillStyle = `rgba(${marginColor(c.marginM)},${alpha})`;
+    ctx.fillRect(p.x - halfPx, p.y - halfPx, cellPx + 1, cellPx + 1);
+  }
+  ctx.restore();
 }
 
 function drawMarker(

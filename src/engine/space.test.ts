@@ -120,4 +120,25 @@ describe("computeOpenSpace()", () => {
     const b = computeOpenSpace(ents, FREEZE, DELTA);
     expect(a).toEqual(b);
   });
+
+  it("returns the reachable cell grid alongside the truth", () => {
+    const ents = fixture({
+      ball:    { x: 0, z: 0 },
+      allies:  [{ x: 0, z: 0 }, { x: 10, z: 5 }],
+      enemies: [{ x: 25, z: 0 }, { x: 20, z: -8 }],
+    });
+    const r = computeOpenSpace(ents, FREEZE, DELTA);
+    // Some cells must be returned and they must agree with consideredCount.
+    expect(r.cells.length).toBeGreaterThan(0);
+    expect(r.cells.length).toBe(r.consideredCount);
+    // Every cell should have a finite margin and lie within the search box.
+    for (const c of r.cells) {
+      expect(Number.isFinite(c.marginM)).toBe(true);
+      expect(c.marginM).toBeGreaterThanOrEqual(0);
+      expect(c.x).toBeGreaterThanOrEqual(r.carrierPos.x - 0.5);
+    }
+    // The truth cell's margin must equal the max over the grid.
+    const maxMargin = r.cells.reduce((m, c) => Math.max(m, c.marginM), 0);
+    expect(r.marginM).toBe(maxMargin);
+  });
 });
