@@ -119,7 +119,15 @@ export class ClipPlayer {
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    // resize() is called once from the constructor before this.camera is
+    // assigned (so the canvas has a non-default size during stadium build).
+    // Mirror ScanView's guard rather than re-ordering — both views now
+    // tolerate "early resize, late camera". Without the guard, the
+    // headless WebGL path throws during construction and the RAF loop
+    // never starts (manifests as a stuck timer at 0.00).
+    if (this.camera) {
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+    }
   };
 }
