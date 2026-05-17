@@ -66,17 +66,22 @@ export class PredictView {
   private build() {
     const root = document.createElement("div");
     root.className = "stage plot-stage";
+    const isSpace = this.opts.clip.predictionTarget === "space";
+    const status = isSpace
+      ? "3秒後、キャリア (★) が通せる「最大スペース」はどこか — タップで回答"
+      : "3秒後、ターゲット (★) はどこへ到達するか — タップで回答";
+    const trayLabel = isSpace ? "SPACE" : "TARGET";
     root.innerHTML = `
       <div class="hud-top">
-        <div class="left">MODE&nbsp;:&nbsp;HIDETOSHI</div>
+        <div class="left">MODE&nbsp;:&nbsp;HIDETOSHI&nbsp;·&nbsp;${isSpace ? "SPACE" : "PLAYER"}</div>
         <div class="right">PHASE&nbsp;:&nbsp;PREDICT</div>
       </div>
-      <div class="plot-status">3秒後、ターゲット (★) はどこへ到達するか — タップで回答</div>
+      <div class="plot-status">${status}</div>
       <div class="plot-canvas-wrap">
         <canvas class="plot-canvas"></canvas>
       </div>
       <div class="tray">
-        <div class="group"><span class="pip ally">★</span><span>TARGET</span></div>
+        <div class="group"><span class="pip ally">★</span><span>${trayLabel}</span></div>
         <div class="group"><span class="rt-label">REACTION</span><span class="rt-value">— ms</span></div>
         <button class="btn secondary" data-act="reset">RESET</button>
         <button class="btn" data-act="submit" disabled>SUBMIT</button>

@@ -8,6 +8,17 @@ export interface MovingEntity extends MovingState {
   kind: EntityKind;
 }
 
+/** Two distinct prediction targets within HIDETOSHI:
+ *
+ *  - `player`: predict where the highlighted ally will be at t = freeze + 3s.
+ *               The ring on the playback marks the target.
+ *  - `space` : predict where the best open space will be at t = freeze + 3s
+ *               (max distance-to-nearest-enemy, reachable by SOME ally).
+ *               No specific player is highlighted; the ball-carrier wears
+ *               the ring to anchor the user's attention to "where can he
+ *               put a killer pass to". */
+export type PredictionTarget = "player" | "space";
+
 export interface Clip {
   seed: number;
   /** When the clip freezes — the user starts predicting at this moment. */
@@ -16,10 +27,13 @@ export interface Clip {
   predictionDeltaMs: number;
   /** Initial state at t=0. */
   entities: MovingEntity[];
-  /** id of the player to predict — highlighted with a ring during playback. */
+  /** id of the player to predict (player mode) or the ball-carrier
+   *  whose options we're reading (space mode). Always highlighted with a ring. */
   targetEntityId: string;
   /** Weather filter applied during CLIP. */
   weather: WeatherKind;
+  /** What the user is being asked to predict. */
+  predictionTarget: PredictionTarget;
 }
 
 function mulberry32(seed: number) {
@@ -93,13 +107,21 @@ export function generateClip(seed = Math.floor(Math.random() * 2 ** 31)): Clip {
   // Freeze 5–9s in. Most realistic killer-pass moment.
   const freezeAtMs = 5000 + Math.floor(rand() * 4000);
   const weather = pickWeather(rand);
+  // 50/50 player-vs-space split. In space mode the ring follows the
+  // ball-carrier (a midfielder) instead of the deep run target — the
+  // user reads "where can this carrier put it" rather than tracking
+  // the receiver. A12 is the carrier index used downstream too.
+  const predictionTarget: PredictionTarget = rand() < 0.5 ? "player" : "space";
+  const targetEntityId =
+    predictionTarget === "player" ? target.id : entities[10].id; // A5 ≈ carrier
 
   return {
     seed,
     freezeAtMs,
     predictionDeltaMs: 3000,
     entities,
-    targetEntityId: target.id,
+    targetEntityId,
     weather,
+    predictionTarget,
   };
 }

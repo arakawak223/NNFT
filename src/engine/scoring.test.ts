@@ -135,6 +135,16 @@ describe("scoreHidetoshi()", () => {
     expect(r.killerPassSuccess).toBe(false);
   });
 
+  it("accepts a wider distToleranceM (space mode)", () => {
+    // 3.5m off — fails at default 3m tolerance, passes at 4m (space mode).
+    const tight = scoreHidetoshi({ x: 0, z: 0 }, { x: 3.5, z: 0 }, 100);
+    const loose = scoreHidetoshi({ x: 0, z: 0 }, { x: 3.5, z: 0 }, 100, { distToleranceM: 4.0 });
+    expect(tight.killerPassSuccess).toBe(false);
+    expect(loose.killerPassSuccess).toBe(true);
+    expect(tight.distToleranceM).toBe(KILLER_PASS_DIST_M);
+    expect(loose.distToleranceM).toBe(4.0);
+  });
+
   it("predictionSpeed decays linearly from 100 at 0ms to 0 at 1500ms", () => {
     expect(scoreHidetoshi(pred, truth, 0).iq.predictionSpeed).toBe(100);
     expect(scoreHidetoshi(pred, truth, 750).iq.predictionSpeed).toBe(50);

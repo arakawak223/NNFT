@@ -1,6 +1,7 @@
 import { generateClip, Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { scoreHidetoshi } from "../../engine/scoring";
+import { computeOpenSpace } from "../../engine/space";
 import { Vec2 } from "../../data/types";
 import { StadiumProvider } from "../../engine/stadium";
 import { WEATHER_LABEL_JA } from "../../engine/weather";
@@ -54,7 +55,11 @@ export class HidetoshiMode {
 
     const inst = document.createElement("div");
     inst.className = "scan-instructions";
-    inst.textContent = "★ ターゲット選手の動き、味方/敵のベクトルを観測しろ — フリーズ後、3秒先を予測する";
+    inst.textContent =
+      clip.predictionTarget === "player"
+        ? "★ ターゲット選手の動き、味方/敵のベクトルを観測しろ — フリーズ後、3秒先を予測する"
+        : "★ ボールキャリアが 3秒後にパスを通せる "
+          + "「最大スペース」を読め — フリーズ後、空きの座標を予測する";
     stage.appendChild(inst);
 
     const progress = document.createElement("div");
@@ -101,9 +106,18 @@ export class HidetoshiMode {
   // ----- Phase 3: Reveal -----
   private startReveal(clip: Clip, prediction: Vec2, reactionMs: number) {
     this.replaceContent();
-    const target = clip.entities.find((e) => e.id === clip.targetEntityId)! as MovingEntity;
-    const truth = positionAt(target, clip.freezeAtMs + clip.predictionDeltaMs);
-    const report = scoreHidetoshi(prediction, truth, reactionMs);
+    let truth: Vec2;
+    if (clip.predictionTarget === "space") {
+      const r = computeOpenSpace(clip.entities, clip.freezeAtMs, clip.predictionDeltaMs);
+      truth = r.truth;
+    } else {
+      const target = clip.entities.find((e) => e.id === clip.targetEntityId)! as MovingEntity;
+      truth = positionAt(target, clip.freezeAtMs + clip.predictionDeltaMs);
+    }
+    // Space targets are larger than a single player's 3m radius — bump
+    // the killer-pass tolerance so the success criterion stays achievable.
+    const distToleranceM = clip.predictionTarget === "space" ? 4.0 : 3.0;
+    const report = scoreHidetoshi(prediction, truth, reactionMs, { distToleranceM });
     persistRun(report);
     const previousBests = loadBests();
     updateBests({

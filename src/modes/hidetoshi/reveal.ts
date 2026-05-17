@@ -1,7 +1,7 @@
 import { EntityKind, PITCH, Vec2 } from "../../data/types";
 import { Clip } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
-import { HidetoshiReport, KILLER_PASS_DIST_M, KILLER_PASS_RT_MS } from "../../engine/scoring";
+import { HidetoshiReport, KILLER_PASS_RT_MS } from "../../engine/scoring";
 import { AxisValues, RadarChart } from "../../ui/radar";
 
 const KIND_FILL: Record<EntityKind, string> = {
@@ -61,14 +61,16 @@ export class HidetoshiRevealView {
     root.className = "stage result-stage";
     const r = this.opts.report;
     const rtCls = r.reactionMs < KILLER_PASS_RT_MS ? "ok" : "bad";
-    const distCls = r.errorM < KILLER_PASS_DIST_M ? "ok" : r.errorM < 8 ? "warn" : "bad";
+    const distCls = r.errorM < r.distToleranceM ? "ok" : r.errorM < 8 ? "warn" : "bad";
+    const isSpace = this.opts.clip.predictionTarget === "space";
     const verdict = r.killerPassSuccess
       ? `<span style="color:var(--ok)">KILLER PASS ✓</span>`
       : `<span style="color:var(--bad)">KILLER PASS ✗</span>`;
+    const targetLabel = isSpace ? "TARGET&nbsp;:&nbsp;SPACE" : "TARGET&nbsp;:&nbsp;PLAYER";
 
     root.innerHTML = `
       <div class="hud-top">
-        <div class="left">MODE&nbsp;:&nbsp;HIDETOSHI</div>
+        <div class="left">MODE&nbsp;:&nbsp;HIDETOSHI &nbsp;·&nbsp; ${targetLabel}</div>
         <div class="right">PHASE&nbsp;:&nbsp;REVEAL</div>
       </div>
       <div class="altitude-banner">${verdict} &nbsp;·&nbsp; +3.0s SIMULATION</div>
@@ -94,7 +96,7 @@ export class HidetoshiRevealView {
         <div class="metric">
           <div class="label">ERROR</div>
           <div class="value" style="color:var(--${distCls})">${formatErr(r.errorM)}</div>
-          <div class="sub">許容誤差 ${KILLER_PASS_DIST_M.toFixed(1)} m</div>
+          <div class="sub">許容誤差 ${r.distToleranceM.toFixed(1)} m${isSpace ? " (SPACE)" : ""}</div>
         </div>
         <div class="metric">
           <div class="label">PRED. SPEED</div>

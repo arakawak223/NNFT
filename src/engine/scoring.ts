@@ -236,7 +236,11 @@ export interface HidetoshiReport {
   errorM: number;
   /** Time from "go" signal to first tap, in ms (0.001 ms resolution). */
   reactionMs: number;
-  /** Spec: RT < 500ms AND error < ~3m == killer pass success. */
+  /** Distance threshold (m) used for killerPassSuccess on this run. */
+  distToleranceM: number;
+  /** Spec: RT < 500ms AND error < tolerance == killer pass success.
+   *  Tolerance defaults to 3m (player target) and is bumped to 4m for
+   *  space-prediction clips where the target is a larger pocket. */
   killerPassSuccess: boolean;
   iq: {
     coordAccuracy: number;
@@ -246,17 +250,24 @@ export interface HidetoshiReport {
   legendBenchmark: number;
 }
 
+export interface ScoreHidetoshiOptions {
+  /** Killer-pass distance threshold in meters. Defaults to KILLER_PASS_DIST_M (3m). */
+  distToleranceM?: number;
+}
+
 export function scoreHidetoshi(
   prediction: Vec2,
   truth: Vec2,
-  reactionMs: number
+  reactionMs: number,
+  opts: ScoreHidetoshiOptions = {}
 ): HidetoshiReport {
   const dx = prediction.x - truth.x;
   const dz = prediction.z - truth.z;
   const errorM = Math.sqrt(dx * dx + dz * dz);
 
+  const distToleranceM = opts.distToleranceM ?? KILLER_PASS_DIST_M;
   const killerPassSuccess =
-    reactionMs < KILLER_PASS_RT_MS && errorM < KILLER_PASS_DIST_M;
+    reactionMs < KILLER_PASS_RT_MS && errorM < distToleranceM;
 
   // 100 at 0ms, ~67 at 500ms, ~0 at 1500ms.
   const predictionSpeed = Math.max(0, Math.min(100, Math.round(100 - reactionMs / 15)));
@@ -266,6 +277,7 @@ export function scoreHidetoshi(
   return {
     errorM,
     reactionMs,
+    distToleranceM,
     killerPassSuccess,
     iq: {
       coordAccuracy,

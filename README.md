@@ -36,27 +36,33 @@ VITE_PLATEAU_GLTF_URL=https://example.com/path/to/stadium.glb npm run dev
 利用可)。設定済みかつ読み込み失敗時は自動で MOCK スタジアムにフォールバック
 し、トースト通知する。
 
-## Mode: HIDETOSHI のフロー (Phase 2)
+## Mode: HIDETOSHI のフロー (Phase 2 + 4-1)
+
+各クリップは seed で **PLAYER モード** か **SPACE モード** に分岐 (50/50)。
+PLAYER は「ターゲット選手の 3 秒後位置」、SPACE は「3 秒後にチームが支配する
+最大スペース」を予測する。
 
 | Phase | 説明 |
 | --- | --- |
-| **CLIP** | 5–9 秒の手続き生成 CG クリップを再生 (4-3-3 vs 4-3-3、ターゲット選手は黄色のリングで強調)。 |
+| **CLIP** | 5–9 秒の手続き生成 CG クリップを再生 (4-3-3 vs 4-3-3、ターゲット (or ボールキャリア) は黄色のリングで強調)。 |
 | **FREEZE** | パスが出る直前で停止 → 320ms 暗転。 |
-| **PREDICT** | 凍結時の選手位置 + 速度ベクトル (薄いライン) が表示。「★ ターゲットが 3 秒後に到達する地点」をタップで回答。RT は `performance.now()` で計測。 |
-| **REVEAL** | 3 秒間の前進シミュレーションをアニメで再生。自分の予測点 → 真の到達点 を線で結び、誤差を表示。 |
+| **PREDICT** | 凍結時の選手位置 + 速度ベクトル (薄いライン) が表示。PLAYER は「★ が 3 秒後に到達する地点」、SPACE は「★ が 3 秒後に通せる最大スペース」をタップで回答。RT は `performance.now()` で計測。 |
+| **REVEAL** | 3 秒間の前進シミュレーションをアニメで再生。自分の予測点 → 真の到達点 (PLAYER) または 真のスペース (SPACE) を線で結び、誤差を表示。 |
 
 **評価指標**
 
 | 指標 | 計算 |
 | --- | --- |
-| `Killer Pass` | RT < 500ms かつ 誤差 < 3.0m で成功 (仕様準拠) |
+| `Killer Pass` | RT < 500ms かつ 誤差 < 許容距離で成功。許容は PLAYER モードで 3.0m / SPACE モードで 4.0m (スペースは選手より的が大きい) |
 | `Reaction Time` | 「PREDICT 画面初描画 → 最初のタップ」を 0.001ms 分解能で計測 |
 | `Prediction Speed` | `clamp(100 - reactionMs/15, 0, 100)` |
 | `Coord Accuracy`  | `100 · exp(-errorM/6)` |
 | `Vision IQ Overall` | `coordAccuracy*0.6 + predictionSpeed*0.4` |
 
-時空計算は `engine/physics.ts` の `positionAt(state, deltaMs)` で等速＋加速の解析解。
-Phase 3 で芝の摩擦・重心移動モデルに差し替え可。
+PLAYER の真値は `positionAt(target, freezeAt + 3000)` (等速＋加速の解析解)。
+SPACE の真値は `engine/space.ts` の `computeOpenSpace`: キャリア前方 38m × ピッチ幅
+を 1m 刻みで探索し、`min(到達敵までの距離)` を最大化するセルを採用 (味方 1 体以上が
+3 秒で到達可能な制約付き)。最大味方走速 `8.5 m/s` を仮定し、到達可能半径 25.5m。
 
 ## Mode: SHUNSUKE のフロー
 
@@ -90,6 +96,7 @@ src/
   engine/
     scenario.ts            SHUNSUKE 用シナリオ生成 (静的配置) + 天候 seed 選択
     physics.ts             positionAt / velocityAt — 等速＋加速の解析解
+    space.ts               computeOpenSpace — HIDETOSHI/SPACE 真値計算
     scoring.ts             SHUNSUKE/HIDETOSHI 両モードのスコアリング
     stadium.ts             StadiumProvider 抽象 + Mock / Plateau 実装
     weather.ts             晴/霧/雨/逆光フィルター (Fog/ライト/雨パーティクル)
@@ -219,8 +226,9 @@ peripheralReaction = round(100 · exp(-avg_error_m / 4))
 - PLATEAU 統合は glTF/glb 単発ロードのみ (本格 3D Tiles ストリーミング・LOD・
   座標系変換は未実装)。
 - ジャイロ較正はセッション開始時の方位を 0 とする簡易版。
-- HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
-  は Phase 3+ で追加予定)。
+- HIDETOSHI/SPACE の真値はグリッドヒューリスティック (1m 刻みの `min(dist to enemy)`)。
+  Spearman 2018 等の確率的 pitch-control surface 実装は未対応。
+  Voronoi/ピッチコントロールへの差し替えは `engine/space.ts` のみで完結する設計。
 - スキャン中のキーボード対応 (WASD) は未実装。
 - 周辺視は SHUNSUKE のみ計測 (HIDETOSHI は固定カメラ)。
 - 天候はスコアリングに影響しない (難易度補正なし、seed 再現性優先)。

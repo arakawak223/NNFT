@@ -37,4 +37,18 @@ describe("generateClip()", () => {
     const c = generateClip(99);
     expect(WEATHER_KINDS).toContain(c.weather);
   });
+
+  it("attaches a valid predictionTarget kind", () => {
+    const c = generateClip(99);
+    expect(["player", "space"]).toContain(c.predictionTarget);
+  });
+
+  it("targetEntityId is an ally in both prediction modes", () => {
+    for (let s = 1; s < 50; s++) {
+      const c = generateClip(s);
+      const target = c.entities.find((e) => e.id === c.targetEntityId);
+      expect(target).toBeTruthy();
+      expect(target!.kind).toBe("ally");
+    }
+  });
 });
