@@ -12,7 +12,8 @@
 
 - **Phase 1 ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
 - **Phase 2 ✅ 実装済み** — `Mode: HIDETOSHI` (動的時空間予測) フル動作
-- **Phase 3 ⏳ 未着手** — 周辺視トレーニング、天候フィルター、PLATEAU 連携
+- **Phase 3 🟡 進行中** — `Vision IQ Radar` (4軸可視化 + 自己ベスト追跡) 実装済み。
+  残: 周辺視トレーニング、天候フィルター、PLATEAU 連携
 
 ## クイックスタート
 
@@ -91,6 +92,7 @@ src/
     index.ts               フェーズ遷移オーケストレータ
   ui/
     title.ts               タイトル / モード選択
+    radar.ts               Vision IQ レーダー + 自己ベスト永続化
     styles.css
   main.ts                  エントリ
 ```
@@ -107,16 +109,33 @@ src/
 - **実写動画連携**: `data/clips.ts` の `Clip` を「ベース動画 URL + 各フレームの
   選手 2D 座標 (検出器 or 手動アノテーション由来)」に拡張。`ClipPlayer` を
   `<video>` レンダラに切り替える派生クラスを追加。
-- **レーダーチャート可視化**: SHUNSUKE/HIDETOSHI 両軸が揃ったので、`reveal.ts`
-  に Canvas レーダー (座標精度 / 予測速度 / 情報保持数 / 周辺視反応) を追加。
 - **周辺視トレーニング**: 視野角 75° で見えていた領域外の正解にペナルティ
-  係数を掛ける `peripheralReaction` の実装。
+  係数を掛ける `peripheralReaction` の実装。`AxisValues.peripheralReaction`
+  は既にレーダー側で受け口があるので、各モードのスコアラから値を流し込み、
+  `index.ts` の `updateBests({ peripheralReaction })` を 1 行追加するだけで
+  レーダーが活性化する。
+
+## Vision IQ レーダー (Phase 3)
+
+両モードの REVEAL 画面下部に 4 軸レーダーを表示。
+
+| 軸 | SHUNSUKE | HIDETOSHI | 備考 |
+| --- | --- | --- | --- |
+| COORD ACCURACY (座標精度) | ✅ | ✅ | 両モードで計測 |
+| PREDICTION SPEED (予測速度) | — | ✅ | HIDETOSHI のみ |
+| INFO RETENTION (情報保持)   | ✅ | — | SHUNSUKE のみ |
+| PERIPHERAL VISION (周辺視)  | — | — | Phase 3 残タスク |
+
+- 未測定の軸は原点に薄いドットで表示 (= 「このモードでは取れない軸」)。
+- 自己ベスト (前回までの最高値) は橙色の点線オーバーレイで重畳。
+  cross-mode で `vc.bests` に永続化される。
+- 100 = レジェンド基準は外周の橙色点線リング。
 
 ## 既知の制限 (現バージョン)
 
 - スタジアムはプレースホルダ (PLATEAU 連携は未実装)。
-- レーダーチャート UI は未実装 (4 軸が揃う Phase 3 で追加)。
 - ジャイロ較正はセッション開始時の方位を 0 とする簡易版。
 - HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
   は Phase 3 で追加予定)。
 - スキャン中のキーボード対応 (WASD) は未実装。
+- 周辺視軸は未測定 (レーダー上では原点ドット表示)。

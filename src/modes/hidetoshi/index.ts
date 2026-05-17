@@ -2,6 +2,7 @@ import { generateClip, Clip, MovingEntity } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { scoreHidetoshi } from "../../engine/scoring";
 import { Vec2 } from "../../data/types";
+import { loadBests, updateBests } from "../../ui/radar";
 import { ClipPlayer } from "./clip";
 import { PredictView, PredictResult } from "./predict";
 import { HidetoshiRevealView } from "./reveal";
@@ -97,11 +98,17 @@ export class HidetoshiMode {
     const truth = positionAt(target, clip.freezeAtMs + clip.predictionDeltaMs);
     const report = scoreHidetoshi(prediction, truth, reactionMs);
     persistRun(report);
+    const previousBests = loadBests();
+    updateBests({
+      coordAccuracy: report.iq.coordAccuracy,
+      predictionSpeed: report.iq.predictionSpeed,
+    });
     const view = new HidetoshiRevealView(this.el, {
       clip,
       prediction,
       truth,
       report,
+      previousBests,
       onRetry: () => this.startClip(generateClip()),
       onMenu: () => this.opts.onExit(),
     });

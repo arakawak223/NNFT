@@ -2,6 +2,7 @@ import { EntityKind, PITCH, Vec2 } from "../../data/types";
 import { Clip } from "../../data/clips";
 import { positionAt } from "../../engine/physics";
 import { HidetoshiReport, KILLER_PASS_DIST_M, KILLER_PASS_RT_MS } from "../../engine/scoring";
+import { AxisValues, RadarChart } from "../../ui/radar";
 
 const KIND_FILL: Record<EntityKind, string> = {
   ally: "#38e1ff",
@@ -19,6 +20,8 @@ export interface RevealOptions {
   prediction: Vec2;
   truth: Vec2;
   report: HidetoshiReport;
+  /** Personal best per axis BEFORE this run. */
+  previousBests: AxisValues;
   onRetry: () => void;
   onMenu: () => void;
 }
@@ -28,6 +31,8 @@ export class HidetoshiRevealView {
   el: HTMLElement;
   private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
+  private radarCanvas!: HTMLCanvasElement;
+  private radar!: RadarChart;
   private startedAt = 0;
   private rafId = 0;
 
@@ -36,14 +41,17 @@ export class HidetoshiRevealView {
     container.appendChild(this.el);
     requestAnimationFrame(() => {
       this.fitCanvas();
+      this.fitRadar();
       this.startedAt = performance.now();
       this.loop();
+      this.radar.start();
     });
     window.addEventListener("resize", this.onResize);
   }
 
   destroy() {
     cancelAnimationFrame(this.rafId);
+    this.radar?.destroy();
     window.removeEventListener("resize", this.onResize);
     this.el.remove();
   }
@@ -66,6 +74,16 @@ export class HidetoshiRevealView {
       <div class="altitude-banner">${verdict} &nbsp;·&nbsp; +3.0s SIMULATION</div>
       <div class="result-canvas-wrap">
         <canvas></canvas>
+      </div>
+      <div class="result-radar">
+        <canvas class="radar-canvas"></canvas>
+        <div class="radar-legend">
+          <div class="radar-title">VISION&nbsp;IQ&nbsp;RADAR</div>
+          <div class="radar-row"><span class="dot now"></span><span>このラン</span></div>
+          <div class="radar-row"><span class="dot best"></span><span>自己ベスト (前回まで)</span></div>
+          <div class="radar-row"><span class="dot bench"></span><span>レジェンド基準 100</span></div>
+          <div class="radar-foot">情報保持は SHUNSUKE で · 周辺視は Phase 3</div>
+        </div>
       </div>
       <div class="result-summary">
         <div class="metric">
@@ -94,8 +112,18 @@ export class HidetoshiRevealView {
         <button class="btn" data-act="retry">RETRY</button>
       </div>
     `;
-    this.canvas = root.querySelector("canvas") as HTMLCanvasElement;
+    this.canvas = root.querySelector(".result-canvas-wrap canvas") as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
+    this.radarCanvas = root.querySelector(".radar-canvas") as HTMLCanvasElement;
+    this.radar = new RadarChart(this.radarCanvas, {
+      values: {
+        coordAccuracy: r.iq.coordAccuracy,
+        predictionSpeed: r.iq.predictionSpeed,
+        infoRetention: null,
+        peripheralReaction: null,
+      },
+      best: this.opts.previousBests,
+    });
     root.querySelector('[data-act="retry"]')!.addEventListener("click", () => this.opts.onRetry());
     root.querySelector('[data-act="menu"]')!.addEventListener("click", () => this.opts.onMenu());
     return root;
@@ -116,7 +144,23 @@ export class HidetoshiRevealView {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
 
-  private onResize = () => { this.fitCanvas(); };
+  private fitRadar = () => {
+    const wrap = this.radarCanvas.parentElement as HTMLElement;
+    const size = Math.min(wrap.clientHeight - 16, 220);
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    this.radarCanvas.style.width = `${size}px`;
+    this.radarCanvas.style.height = `${size}px`;
+    this.radarCanvas.width = Math.round(size * dpr);
+    this.radarCanvas.height = Math.round(size * dpr);
+    const rctx = this.radarCanvas.getContext("2d")!;
+    rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.radar.redraw();
+  };
+
+  private onResize = () => {
+    this.fitCanvas();
+    this.fitRadar();
+  };
 
   private loop = () => {
     const elapsed = performance.now() - this.startedAt;

@@ -1,5 +1,6 @@
 import { Entity, PITCH } from "../../data/types";
 import { ScoreReport, classifyError } from "../../engine/scoring";
+import { AxisValues, RadarChart } from "../../ui/radar";
 
 const ERR_COLOR = { ok: "#4ade80", warn: "#f59e0b", bad: "#ef4444" } as const;
 const KIND_FILL = { ally: "#38e1ff", enemy: "#ff3a6e", ball: "#ffe066" } as const;
@@ -10,6 +11,9 @@ export interface RevealOptions {
   placed: Entity[];
   observer: { x: number; z: number };
   report: ScoreReport;
+  /** Personal best per axis BEFORE this run (so the overlay shows the
+   *  bar this run was trying to clear). */
+  previousBests: AxisValues;
   onRetry: () => void;
   onMenu: () => void;
 }
@@ -21,6 +25,8 @@ export class RevealView {
   el: HTMLElement;
   private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
+  private radarCanvas!: HTMLCanvasElement;
+  private radar!: RadarChart;
   private startedAt = 0;
   private rafId = 0;
   private altitudeM = 0.5; // start "on the ground"
@@ -30,14 +36,17 @@ export class RevealView {
     container.appendChild(this.el);
     requestAnimationFrame(() => {
       this.fitCanvas();
+      this.fitRadar();
       this.startedAt = performance.now();
       this.loop();
+      this.radar.start();
     });
     window.addEventListener("resize", this.onResize);
   }
 
   destroy() {
     cancelAnimationFrame(this.rafId);
+    this.radar?.destroy();
     window.removeEventListener("resize", this.onResize);
     this.el.remove();
   }
@@ -54,6 +63,16 @@ export class RevealView {
       <div class="altitude-banner">VIEWPOINT &nbsp; ALTITUDE &nbsp; — m</div>
       <div class="result-canvas-wrap">
         <canvas></canvas>
+      </div>
+      <div class="result-radar">
+        <canvas class="radar-canvas"></canvas>
+        <div class="radar-legend">
+          <div class="radar-title">VISION&nbsp;IQ&nbsp;RADAR</div>
+          <div class="radar-row"><span class="dot now"></span><span>このラン</span></div>
+          <div class="radar-row"><span class="dot best"></span><span>自己ベスト (前回まで)</span></div>
+          <div class="radar-row"><span class="dot bench"></span><span>レジェンド基準 100</span></div>
+          <div class="radar-foot">周辺視は Phase 3 で測定開始</div>
+        </div>
       </div>
       <div class="result-summary">
         <div class="metric">
@@ -82,8 +101,18 @@ export class RevealView {
         <button class="btn" data-act="retry">RETRY</button>
       </div>
     `;
-    this.canvas = root.querySelector("canvas") as HTMLCanvasElement;
+    this.canvas = root.querySelector(".result-canvas-wrap canvas") as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
+    this.radarCanvas = root.querySelector(".radar-canvas") as HTMLCanvasElement;
+    this.radar = new RadarChart(this.radarCanvas, {
+      values: {
+        coordAccuracy: r.iq.coordAccuracy,
+        predictionSpeed: r.iq.predictionSpeed,
+        infoRetention: r.iq.infoRetention,
+        peripheralReaction: r.iq.peripheralReaction,
+      },
+      best: this.opts.previousBests,
+    });
     root.querySelector('[data-act="retry"]')!.addEventListener("click", () => this.opts.onRetry());
     root.querySelector('[data-act="menu"]')!.addEventListener("click", () => this.opts.onMenu());
     return root;
@@ -104,7 +133,23 @@ export class RevealView {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
 
-  private onResize = () => { this.fitCanvas(); };
+  private fitRadar = () => {
+    const wrap = this.radarCanvas.parentElement as HTMLElement;
+    const size = Math.min(wrap.clientHeight - 16, 220);
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    this.radarCanvas.style.width = `${size}px`;
+    this.radarCanvas.style.height = `${size}px`;
+    this.radarCanvas.width = Math.round(size * dpr);
+    this.radarCanvas.height = Math.round(size * dpr);
+    const rctx = this.radarCanvas.getContext("2d")!;
+    rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.radar.redraw();
+  };
+
+  private onResize = () => {
+    this.fitCanvas();
+    this.fitRadar();
+  };
 
   private loop = () => {
     const t = (performance.now() - this.startedAt) / 1500; // 1.5s rise

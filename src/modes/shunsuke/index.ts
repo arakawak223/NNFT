@@ -1,6 +1,7 @@
 import { generateScenario, Scenario } from "../../engine/scenario";
 import { score } from "../../engine/scoring";
 import { Entity } from "../../data/types";
+import { loadBests, updateBests } from "../../ui/radar";
 import { ScanView } from "./scan";
 import { PlotView } from "./plot";
 import { RevealView } from "./reveal";
@@ -105,11 +106,19 @@ export class ShunsukeMode {
     this.replaceContent();
     const report = score(placed, scenario.entities);
     persistRun(report);
+    // Capture pre-run bests so the radar shows the bar to beat,
+    // then update bests with this run's measured axes.
+    const previousBests = loadBests();
+    updateBests({
+      coordAccuracy: report.iq.coordAccuracy,
+      infoRetention: report.iq.infoRetention,
+    });
     const view = new RevealView(this.el, {
       truth: scenario.entities,
       placed,
       observer: scenario.observer,
       report,
+      previousBests,
       onRetry: () => this.startScan(generateScenario()),
       onMenu: () => this.opts.onExit(),
     });

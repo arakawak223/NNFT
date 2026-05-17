@@ -313,6 +313,56 @@ body {
   display: flex; gap: 10px; justify-content: center; padding: 0 18px 18px;
 }
 
+/* ---------- Vision IQ Radar ---------- */
+.result-radar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 18px 4px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(56,225,255,0.02), transparent 60%);
+}
+.radar-canvas {
+  display: block;
+  flex-shrink: 0;
+}
+.radar-legend {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--ink-1);
+  letter-spacing: 0.06em;
+  line-height: 1.7;
+}
+.radar-title {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  margin-bottom: 8px;
+}
+.radar-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.radar-row .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.radar-row .dot.now   { background: var(--accent); box-shadow: 0 0 8px rgba(56,225,255,0.55); }
+.radar-row .dot.best  { background: transparent; border: 1.5px dashed var(--accent-2); }
+.radar-row .dot.bench { background: transparent; border: 1.5px dashed rgba(255,184,74,0.45); }
+.radar-foot {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--ink-2);
+  letter-spacing: 0.12em;
+}
+@media (max-width: 560px) {
+  .result-radar { flex-direction: column; gap: 8px; align-items: stretch; }
+  .radar-canvas { align-self: center; }
+}
+
 /* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed; inset: 0;
