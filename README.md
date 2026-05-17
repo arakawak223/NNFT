@@ -59,7 +59,11 @@ PLAYER は「ターゲット選手の 3 秒後位置」、SPACE は「3 秒後�
 | `Coord Accuracy`  | `100 · exp(-errorM/6)` |
 | `Vision IQ Overall` | `coordAccuracy*0.6 + predictionSpeed*0.4` |
 
-PLAYER の真値は `positionAt(target, freezeAt + 3000)` (等速＋加速の解析解)。
+PLAYER の真値は `positionAt(target, freezeAt + 3000)` — Phase 4 で **中点法
+(RK2) の数値積分** に置換。`MAX_SPRINT_M_S = 9.5` と `MAX_ACCEL_M_S2 = 5.0`
+(芝面摩擦 μ≈0.5 から導出した μ·g ≈ 4.9 m/s² の現実値) で速度 / 加速度を
+2D 等方クランプ。中点法は等加速軌道に対し解析解と一致するため、Phase 2 の
+閉形式期待値テストは bit-for-bit で緑のまま。
 SPACE の真値は `engine/space.ts` の `computeOpenSpace`: キャリア前方 38m × ピッチ幅
 を 1m 刻みで探索し、`min(到達敵までの距離)` を最大化するセルを採用 (味方 1 体以上が
 3 秒で到達可能な制約付き)。最大味方走速 `8.5 m/s` を仮定し、到達可能半径 25.5m。
@@ -176,8 +180,9 @@ Clip は seeded 乱数で 1 つを決定 (同 seed なら同天候で再現可�
 - **天候強度のスコアリング考慮**: 同 seed 比較が運用上不便なら、難易度ボーナス
   係数を `score()` / `scoreHidetoshi()` に乗せる。現状は seed 再現性のため
   ニュートラル。
-- **物理ロジック高度化**: `engine/physics.ts` を芝の摩擦 / 重心移動 / 最大加速度
-  上限を含むモデルに差し替え。`positionAt` のシグネチャを保てば呼び出し側無変更。
+- **物理モデルの更なる高度化**: Phase 4-4 で RK2 + 速度/加速度キャップは
+  入った。次は方向別の差別化 (前方推進 vs 旋回トルク)、スプリント疲労 (3s+ の
+  クリップで意味を持つ)、選手別パラメータ (FW/CB で max_accel が違う) など。
 - **実写動画連携**: `data/clips.ts` の `Clip` を「ベース動画 URL + 各フレームの
   選手 2D 座標 (検出器 or 手動アノテーション由来)」に拡張。`ClipPlayer` を
   `<video>` レンダラに切り替える派生クラスを追加。
