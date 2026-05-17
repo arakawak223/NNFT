@@ -2,7 +2,7 @@ import { generateScenario, Scenario } from "../../engine/scenario";
 import { score } from "../../engine/scoring";
 import { Entity } from "../../data/types";
 import { loadBests, updateBests } from "../../ui/radar";
-import { ScanView } from "./scan";
+import { ScanResult, ScanView } from "./scan";
 import { PlotView } from "./plot";
 import { RevealView } from "./reveal";
 
@@ -69,8 +69,8 @@ export class ShunsukeMode {
       onTick: (rem) => {
         timerEl.textContent = (rem / 1000).toFixed(2);
       },
-      onComplete: () => {
-        this.blackoutThen(() => this.startPlot(scenario));
+      onComplete: (result) => {
+        this.blackoutThen(() => this.startPlot(scenario, result));
       },
     });
     // Kick the progress bar.
@@ -91,27 +91,32 @@ export class ShunsukeMode {
   }
 
   // ----- Phase 2: Plot -----
-  private startPlot(scenario: Scenario) {
+  private startPlot(scenario: Scenario, scanResult: ScanResult) {
     this.replaceContent();
     const view = new PlotView(this.el, {
       truth: scenario.entities,
       observer: scenario.observer,
-      onSubmit: (placed) => this.startReveal(scenario, placed),
+      onSubmit: (placed) => this.startReveal(scenario, placed, scanResult),
     });
     this.current = view;
   }
 
   // ----- Phase 3: Reveal / Result -----
-  private startReveal(scenario: Scenario, placed: Entity[]) {
+  private startReveal(scenario: Scenario, placed: Entity[], scanResult: ScanResult) {
     this.replaceContent();
-    const report = score(placed, scenario.entities);
+    const report = score(placed, scenario.entities, {
+      yawSamples: scanResult.yawSamples,
+      observer: scenario.observer,
+    });
     persistRun(report);
     // Capture pre-run bests so the radar shows the bar to beat,
-    // then update bests with this run's measured axes.
+    // then update bests with this run's measured axes (peripheral only
+    // counts when the pool was large enough).
     const previousBests = loadBests();
     updateBests({
       coordAccuracy: report.iq.coordAccuracy,
       infoRetention: report.iq.infoRetention,
+      peripheralReaction: report.iq.peripheralReaction,
     });
     const view = new RevealView(this.el, {
       truth: scenario.entities,

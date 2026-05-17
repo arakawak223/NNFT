@@ -1,5 +1,5 @@
 import { Entity, PITCH } from "../../data/types";
-import { ScoreReport, classifyError } from "../../engine/scoring";
+import { PeripheralBreakdown, ScoreReport, classifyError } from "../../engine/scoring";
 import { AxisValues, RadarChart } from "../../ui/radar";
 
 const ERR_COLOR = { ok: "#4ade80", warn: "#f59e0b", bad: "#ef4444" } as const;
@@ -71,7 +71,7 @@ export class RevealView {
           <div class="radar-row"><span class="dot now"></span><span>このラン</span></div>
           <div class="radar-row"><span class="dot best"></span><span>自己ベスト (前回まで)</span></div>
           <div class="radar-row"><span class="dot bench"></span><span>レジェンド基準 100</span></div>
-          <div class="radar-foot">周辺視は Phase 3 で測定開始</div>
+          <div class="radar-foot">${peripheralFootnote(r.peripheral)}</div>
         </div>
       </div>
       <div class="result-summary">
@@ -89,6 +89,11 @@ export class RevealView {
           <div class="label">RETENTION</div>
           <div class="value">${r.iq.infoRetention}<span style="font-size:14px"> / 100</span></div>
           <div class="sub">${r.placedCount} / ${r.totalTruthCount} 配置</div>
+        </div>
+        <div class="metric">
+          <div class="label">PERIPHERAL</div>
+          <div class="value">${peripheralValue(r.iq.peripheralReaction)}</div>
+          <div class="sub">${peripheralSub(r.peripheral)}</div>
         </div>
         <div class="metric">
           <div class="label">VISION IQ</div>
@@ -250,4 +255,22 @@ function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
 function formatErr(cm: number) {
   if (cm < 100) return `${cm.toFixed(0)} cm`;
   return `${(cm / 100).toFixed(2)} m`;
+}
+
+function peripheralValue(v: number | null): string {
+  return v == null ? `—` : `${v}<span style="font-size:14px"> / 100</span>`;
+}
+
+function peripheralSub(p: PeripheralBreakdown | null): string {
+  if (!p) return `視野外の対象なし`;
+  if (p.peripheralCount < 3) return `周辺視テスト不足 (${p.peripheralCount})`;
+  return `視野外 ${p.peripheralCount} 体・平均 ${p.peripheralAvgErrorM.toFixed(2)} m`;
+}
+
+function peripheralFootnote(p: PeripheralBreakdown | null): string {
+  if (!p) return `周辺視: 計測なし (SCAN ヨー履歴なし)`;
+  if (p.peripheralCount < 3) {
+    return `周辺視: SCAN 時に視野外の対象が ${p.peripheralCount} 体のみ — もっと一点を凝視せよ`;
+  }
+  return `周辺視: SCAN 時に視野外だった ${p.peripheralCount} 体の配置精度`;
 }

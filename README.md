@@ -12,8 +12,9 @@
 
 - **Phase 1 ✅ 実装済み** — `Mode: SHUNSUKE` (静的空間マッピング) フル動作
 - **Phase 2 ✅ 実装済み** — `Mode: HIDETOSHI` (動的時空間予測) フル動作
-- **Phase 3 🟡 進行中** — `Vision IQ Radar` (4軸可視化 + 自己ベスト追跡) 実装済み。
-  残: 周辺視トレーニング、天候フィルター、PLATEAU 連携
+- **Phase 3 🟡 進行中** — Vision IQ Radar (4軸可視化 + 自己ベスト) ✅ /
+  周辺視トレーニング (`peripheralReaction`) ✅。
+  残: 天候フィルター、PLATEAU 連携
 
 ## クイックスタート
 
@@ -61,7 +62,8 @@ Phase 3 で芝の摩擦・重心移動モデルに差し替え可。
 | `Viewpoint Altitude` | `200 / 平均誤差(cm)` を 0.1〜20m にクランプ。仕様アンカー: 10cm = 20m, 1m = 2m。 |
 | `Coord Accuracy`     | `100 · exp(-平均誤差cm / 280)` |
 | `Info Retention`     | `配置数 / 23` |
-| `Vision IQ Overall`  | 上記の加重平均 (Phase 1 では 2 軸のみ参加) |
+| `Peripheral Vision`  | SCAN 時の yaw 履歴から 視野外プール (offset > 37.5°) を抽出し `100 · exp(-平均誤差m / 4)`。プール < 3 体なら null。 |
+| `Vision IQ Overall`  | 周辺視ありなら `0.55·座標 + 0.20·保持 + 0.25·周辺視`、なしなら `0.7·座標 + 0.3·保持`。 |
 
 採点は配置とグラウンドトゥルースを kind 別に最近傍貪欲マッチングで対応付け、
 誤差の中央値・平均を算出する (11+11+1 規模なので Hungarian は不要)。
@@ -109,11 +111,8 @@ src/
 - **実写動画連携**: `data/clips.ts` の `Clip` を「ベース動画 URL + 各フレームの
   選手 2D 座標 (検出器 or 手動アノテーション由来)」に拡張。`ClipPlayer` を
   `<video>` レンダラに切り替える派生クラスを追加。
-- **周辺視トレーニング**: 視野角 75° で見えていた領域外の正解にペナルティ
-  係数を掛ける `peripheralReaction` の実装。`AxisValues.peripheralReaction`
-  は既にレーダー側で受け口があるので、各モードのスコアラから値を流し込み、
-  `index.ts` の `updateBests({ peripheralReaction })` を 1 行追加するだけで
-  レーダーが活性化する。
+- **周辺視可視化の強化**: `ScoreReport.peripheral.offsetsDeg` を REVEAL の
+  俯瞰盤に重ねて、視野外エンティティだけ別色で強調する (現在は数値のみ)。
 
 ## Vision IQ レーダー (Phase 3)
 
@@ -124,7 +123,35 @@ src/
 | COORD ACCURACY (座標精度) | ✅ | ✅ | 両モードで計測 |
 | PREDICTION SPEED (予測速度) | — | ✅ | HIDETOSHI のみ |
 | INFO RETENTION (情報保持)   | ✅ | — | SHUNSUKE のみ |
-| PERIPHERAL VISION (周辺視)  | — | — | Phase 3 残タスク |
+| PERIPHERAL VISION (周辺視)  | ✅ | — | SHUNSUKE のみ (固定カメラの HIDETOSHI では計測不能) |
+
+## 周辺視メトリクス (Phase 3-2)
+
+SHUNSUKE の SCAN 中、毎フレーム `OrientationController.state.yaw` を
+サンプリング (~60 サンプル / 1 秒)。REVEAL 時に `engine/scoring.ts` の
+`computePeripheralBreakdown` が各 truth エンティティについて
+
+```
+bearing = atan2(-(e.z - obs.z), e.x - obs.x)
+minOffset = min_t |angleDiff(yaw_t, bearing)|
+```
+
+を算出し、`minOffset > FOV/2` (FOV = 75°) のエンティティを **「視野外プール」**
+と定義する (= 一度も画面中央付近に入らなかった)。
+
+```
+peripheralReaction = round(100 · exp(-avg_error_m / 4))
+```
+
+- プール ≥ 3 体のとき有効。未満なら `null` (= 周辺視テスト未成立)。
+  「全方向を見回した」ランは null になり、レーダーでは原点表示。
+- プールが多いほどテストとしては厳密。**「一点凝視 → 周りを記憶」** が高得点。
+- Overall IQ は周辺視を含むときは `0.55·座標 + 0.20·保持 + 0.25·周辺視` に
+  リウェイト (なしのときは従来通り `0.7·座標 + 0.3·保持`)。
+
+`ScoreReport.peripheral` に `PeripheralBreakdown` (各エンティティの
+`offsetDeg` / `errorM`) が乗るので、Phase 3+ で「視野外マーカーを色分け表示」
+する拡張が容易。
 
 - 未測定の軸は原点に薄いドットで表示 (= 「このモードでは取れない軸」)。
 - 自己ベスト (前回までの最高値) は橙色の点線オーバーレイで重畳。
@@ -138,4 +165,4 @@ src/
 - HIDETOSHI の予測ターゲットは「選手の 3 秒後位置」のみ (空きスペース予測モード
   は Phase 3 で追加予定)。
 - スキャン中のキーボード対応 (WASD) は未実装。
-- 周辺視軸は未測定 (レーダー上では原点ドット表示)。
+- 周辺視は SHUNSUKE のみ計測 (HIDETOSHI は固定カメラ)。

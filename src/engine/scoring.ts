@@ -1,5 +1,9 @@
 import { Entity, EntityKind, Vec2 } from "../data/types";
 
+/** SCAN camera FOV (deg). Matches the THREE.PerspectiveCamera in scan.ts.
+ *  Half of this is the "directly viewed" cone — anything beyond is peripheral. */
+export const SCAN_FOV_DEG = 75;
+
 /** Greedy nearest-neighbor assignment between user placements and ground truth.
  *  Sufficient for 11+11+1 — Hungarian would be marginally better but adds bulk. */
 function assign(placed: Entity[], truth: Entity[]) {
@@ -31,6 +35,24 @@ function dist(a: Vec2, b: Vec2) {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
+export interface PeripheralInput {
+  /** Yaw (rad) sampled per frame during SCAN. */
+  yawSamples: number[];
+  /** Observer position the yaw was measured from. */
+  observer: Vec2;
+  /** Override FOV (deg). Default `SCAN_FOV_DEG`. */
+  fovDeg?: number;
+}
+
+export interface PeripheralBreakdown {
+  /** Truth entities that were never within the directly-viewed cone. */
+  peripheralCount: number;
+  /** Mean placement error (m) among the peripheral pool. */
+  peripheralAvgErrorM: number;
+  /** Min angular offset (deg) recorded per matched truth entity. */
+  offsetsDeg: { id: string; offsetDeg: number; errorM: number; peripheral: boolean }[];
+}
+
 export interface ScoreReport {
   /** Per-piece error in cm. */
   pairs: { placed: Entity; truth: Entity; errorCm: number }[];
@@ -51,11 +73,22 @@ export interface ScoreReport {
     peripheralReaction: number | null;
     overall: number;
   };
+  /** Optional peripheral diagnostics — present iff peripheral input was given
+   *  AND the pool size was meaningful (≥3 entities). */
+  peripheral: PeripheralBreakdown | null;
   /** Reference benchmark — Shunsuke/Hidetoshi prime ≈ 100. */
   legendBenchmark: number;
 }
 
-export function score(placed: Entity[], truth: Entity[]): ScoreReport {
+/** Statistical floor for peripheral metric — below this we return null
+ *  (the user "scanned everything", no peripheral test was actually administered). */
+const PERIPHERAL_MIN_POOL = 3;
+
+export function score(
+  placed: Entity[],
+  truth: Entity[],
+  peripheral?: PeripheralInput
+): ScoreReport {
   const { pairs, missing } = assign(placed, truth);
   const errorsCm = pairs.map((p) => p.errorM * 100);
   const placedCount = placed.length;
@@ -74,12 +107,38 @@ export function score(placed: Entity[], truth: Entity[]): ScoreReport {
   const coordAccuracy = Math.round(100 * Math.exp(-averageErrorCm / 280));
   const infoRetention = Math.round((placedCount / totalTruthCount) * 100);
 
+  // Peripheral — only present if we got yaw samples AND enough entities
+  // landed outside the viewed cone to make the score meaningful.
+  let peripheralReaction: number | null = null;
+  let peripheralReport: PeripheralBreakdown | null = null;
+  if (peripheral && peripheral.yawSamples.length > 0) {
+    peripheralReport = computePeripheralBreakdown(pairs, peripheral);
+    if (peripheralReport.peripheralCount >= PERIPHERAL_MIN_POOL) {
+      // 100 at 0m avg error, ~37 at 4m, ~14 at 8m. Mirrors the per-entity
+      // exp(-err/4) used in HIDETOSHI for consistency.
+      peripheralReaction = Math.round(
+        100 * Math.exp(-peripheralReport.peripheralAvgErrorM / 4)
+      );
+    } else {
+      // Not enough peripheral pool — report null so the radar shows it as
+      // "untested" instead of misleadingly perfect. Keep the diagnostic
+      // breakdown attached so callers can still inspect it.
+      peripheralReport = { ...peripheralReport };
+    }
+  }
+
+  // Re-weight the overall IQ when peripheral participates.
+  const overall =
+    peripheralReaction != null
+      ? Math.round(coordAccuracy * 0.55 + infoRetention * 0.2 + peripheralReaction * 0.25)
+      : Math.round(coordAccuracy * 0.7 + infoRetention * 0.3);
+
   const iq = {
     coordAccuracy,
     infoRetention,
     predictionSpeed: null,
-    peripheralReaction: null,
-    overall: Math.round((coordAccuracy * 0.7 + infoRetention * 0.3)),
+    peripheralReaction,
+    overall,
   };
 
   return {
@@ -91,8 +150,60 @@ export function score(placed: Entity[], truth: Entity[]): ScoreReport {
     totalTruthCount,
     viewpointAltitudeM,
     iq,
+    peripheral: peripheralReport,
     legendBenchmark: 100,
   };
+}
+
+function computePeripheralBreakdown(
+  pairs: { placed: Entity; truth: Entity; errorM: number }[],
+  input: PeripheralInput
+): PeripheralBreakdown {
+  const fovDeg = input.fovDeg ?? SCAN_FOV_DEG;
+  const halfFovRad = (fovDeg / 2) * (Math.PI / 180);
+  const obs = input.observer;
+  const samples = input.yawSamples;
+
+  const offsetsDeg: PeripheralBreakdown["offsetsDeg"] = [];
+  const peripheralErrors: number[] = [];
+
+  for (const pair of pairs) {
+    const dx = pair.truth.pos.x - obs.x;
+    const dz = pair.truth.pos.z - obs.z;
+    // yaw=0 points +x and yaw rotates +x → -z (see scan.ts forward vector).
+    const bearing = Math.atan2(-dz, dx);
+    let minOffset = Infinity;
+    for (const y of samples) {
+      const d = Math.abs(angleDiff(y, bearing));
+      if (d < minOffset) minOffset = d;
+    }
+    const peripheral = minOffset > halfFovRad;
+    offsetsDeg.push({
+      id: pair.truth.id,
+      offsetDeg: (minOffset * 180) / Math.PI,
+      errorM: pair.errorM,
+      peripheral,
+    });
+    if (peripheral) peripheralErrors.push(pair.errorM);
+  }
+
+  const peripheralAvgErrorM = peripheralErrors.length
+    ? peripheralErrors.reduce((s, v) => s + v, 0) / peripheralErrors.length
+    : 0;
+
+  return {
+    peripheralCount: peripheralErrors.length,
+    peripheralAvgErrorM,
+    offsetsDeg,
+  };
+}
+
+/** Wrap to (-π, π]. */
+function angleDiff(a: number, b: number): number {
+  let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 export function classifyError(cm: number): "ok" | "warn" | "bad" {

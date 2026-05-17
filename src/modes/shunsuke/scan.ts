@@ -10,6 +10,9 @@ const EYE_HEIGHT_M = 1.65;
 export interface ScanResult {
   /** ms the user actually saw the scene before blackout. */
   durationMs: number;
+  /** Yaw (rad) sampled once per rendered frame for peripheral-vision
+   *  scoring. ~60 samples over a 1s scan. */
+  yawSamples: number[];
 }
 
 export interface ScanOptions {
@@ -29,6 +32,7 @@ export class ScanView {
   private running = false;
   private startedAt = 0;
   private durationMs: number;
+  private yawSamples: number[] = [];
 
   constructor(
     private container: HTMLElement,
@@ -69,6 +73,7 @@ export class ScanView {
 
       // Apply orientation to camera.
       const { yaw, pitch } = this.orient.state;
+      this.yawSamples.push(yaw);
       // Default forward is +x, so build a quaternion for yaw around +y.
       const dir = new THREE.Vector3(
         Math.cos(yaw) * Math.cos(pitch),
@@ -81,7 +86,7 @@ export class ScanView {
 
       if (remaining <= 0) {
         this.stop();
-        this.opts.onComplete?.({ durationMs: elapsed });
+        this.opts.onComplete?.({ durationMs: elapsed, yawSamples: this.yawSamples.slice() });
         return;
       }
       this.rafId = requestAnimationFrame(tick);
